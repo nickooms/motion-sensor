@@ -1,23 +1,11 @@
-var video = document.getElementById('video');
-var canvas = document.getElementById('motion');
-var score = document.getElementById('score');
+const video = document.getElementById('video');
+const motionCanvas = document.getElementById('motion');
+const score = document.getElementById('score');
 
-function initSuccess() {
-  DiffCamEngine.start();
-}
+const initSuccessCallback = () => DiffCamEngine.start();
 
-function initError() {
-  alert('Something went wrong.');
-}
+const initErrorCallback = () => alert('Something went wrong.');
 
-function capture(payload) {
-  score.textContent = payload.score;
-}
+const captureCallback = payload => score.textContent = payload.score;
 
-DiffCamEngine.init({
-  video: video,
-  motionCanvas: canvas,
-  initSuccessCallback: initSuccess,
-  initErrorCallback: initError,
-  captureCallback: capture
-});
+DiffCamEngine.init({ video, motionCanvas, initSuccessCallback, initErrorCallback, captureCallback });

@@ -1,4 +1,4 @@
-var DiffCamEngine = (function() {
+const DiffCamEngine = (function() {
 	var stream;					// stream obtained from webcam
 	var video;					// shows stream
 	var captureCanvas;			// internal canvas for capturing full images from video
@@ -25,7 +25,39 @@ var DiffCamEngine = (function() {
 	var includeMotionBox;		// flag to calculate and draw motion bounding box
 	var includeMotionPixels;	// flag to create object denoting pixels with motion
 
-	function init(options) {
+  const init = ({
+    video = document.createElement('video'),
+    motionCanvas = document.createElement('canvas'),
+    captureIntervalTime = 100,
+    captureWidth = 640,
+    captureHeight = 480,
+    diffWidth = 64,
+    diffHeight = 48,
+    pixelDiffThreshold = 32,
+    scoreThreshold = 16,
+    includeMotionBox = false,
+    includeMotionPixels = false,
+    initSuccessCallback = function() {},
+    initErrorCallback = function() {},
+    startCompleteCallback = function() {},
+    captureCallback = function() {},
+  }) => {
+    const captureCanvas = document.createElement('canvas');
+    const diffCanvas = document.createElement('canvas');
+    const isReadyToDiff = false;
+    video.autoplay = true;
+    captureCanvas.width = captureWidth;
+    captureCanvas.height = captureHeight;
+    captureContext = captureCanvas.getContext('2d');
+    diffCanvas.width = diffWidth;
+    diffCanvas.height = diffHeight;
+    diffContext = diffCanvas.getContext('2d');
+    motionCanvas.width = diffWidth;
+    motionCanvas.height = diffHeight;
+    motionContext = motionCanvas.getContext('2d');
+    requestWebcam();
+  }
+	/* function init(options) {
 		// sanity check
 		if (!options) {
 			throw 'No options object provided';
@@ -74,10 +106,17 @@ var DiffCamEngine = (function() {
 		motionContext = motionCanvas.getContext('2d');
 
 		requestWebcam();
-	}
+	}*/
 
-	function requestWebcam() {
-		var constraints = {
+  const requestWebcam = () => navigator.mediaDevices.getUserMedia({
+    audio: false, 
+    video: { width: captureWidth, height: captureHeight },
+  })
+  .then(initSuccess)
+  .catch(initError);
+
+	/* function requestWebcam() {
+		const constraints = {
 			audio: false,
 			video: { width: captureWidth, height: captureHeight }
 		};
@@ -85,19 +124,34 @@ var DiffCamEngine = (function() {
 		navigator.mediaDevices.getUserMedia(constraints)
 			.then(initSuccess)
 			.catch(initError);
-	}
+	}*/
 
-	function initSuccess(requestedStream) {
+	const initSuccess = requestedStream => {
+    stream = requestedStream;
+    initSuccessCallback();
+  }
+
+  /* function initSuccess(requestedStream) {
 		stream = requestedStream;
 		initSuccessCallback();
-	}
+	}*/
 
-	function initError(error) {
+	const initError = error => {
+    console.log(error);
+    initErrorCallback();
+  }
+
+  /*function initError(error) {
 		console.log(error);
 		initErrorCallback();
-	}
+	}*/
 
-	function start() {
+  const start = {
+    if (!stream) throw 'Cannot start after init fail';
+    video.addEventListener('canplay', startComplete);
+    video.srcObject = stream;
+  }
+	/* function start() {
 		if (!stream) {
 			throw 'Cannot start after init fail';
 		}
@@ -105,22 +159,68 @@ var DiffCamEngine = (function() {
 		// streaming takes a moment to start
 		video.addEventListener('canplay', startComplete);
 		video.srcObject = stream;
-	}
+	}*/
 
-	function startComplete() {
+  const startComplete = {
+    video.removeEventListener('canplay', startComplete);
+    captureInterval = setInterval(capture, captureIntervalTime);
+    startCompleteCallback();
+  }
+	/* function startComplete() {
 		video.removeEventListener('canplay', startComplete);
 		captureInterval = setInterval(capture, captureIntervalTime);
 		startCompleteCallback();
-	}
+	}*/
+  const stop = {
+    clearInterval(captureInterval);
+    video.src = '';
+    motionContext.clearRect(0, 0, diffWidth, diffHeight);
+    isReadyToDiff = false;
+  }
 
-	function stop() {
+	/* function stop() {
 		clearInterval(captureInterval);
 		video.src = '';
 		motionContext.clearRect(0, 0, diffWidth, diffHeight);
 		isReadyToDiff = false;
-	}
-
-	function capture() {
+	}*/
+  const capture = () => {
+    captureContext.drawImage(video, 0, 0, captureWidth, captureHeight);
+    var captureImageData = captureContext.getImageData(0, 0, captureWidth, captureHeight);
+    diffContext.globalCompositeOperation = 'difference';
+    diffContext.drawImage(video, 0, 0, diffWidth, diffHeight);
+    var diffImageData = diffContext.getImageData(0, 0, diffWidth, diffHeight);
+    if (isReadyToDiff) {
+      var diff = processDiff(diffImageData);
+      motionContext.putImageData(diffImageData, 0, 0);
+      if (diff.motionBox) {
+        motionContext.strokeStyle = '#fff';
+        motionContext.strokeRect(
+          diff.motionBox.x.min + 0.5,
+          diff.motionBox.y.min + 0.5,
+          diff.motionBox.x.max - diff.motionBox.x.min,
+          diff.motionBox.y.max - diff.motionBox.y.min
+        );
+      }
+      captureCallback({
+        imageData: captureImageData,
+        score: diff.score,
+        hasMotion: diff.score >= scoreThreshold,
+        motionBox: diff.motionBox,
+        motionPixels: diff.motionPixels,
+        getURL: function() {
+          return getCaptureUrl(this.imageData);
+        },
+        checkMotionPixel: function(x, y) {
+          return checkMotionPixel(this.motionPixels, x, y)
+        }
+      });
+    }
+    diffContext.globalCompositeOperation = 'source-over';
+    diffContext.drawImage(video, 0, 0, diffWidth, diffHeight);
+    isReadyToDiff = true;
+  }
+	/* function capture() {
 		// save a full-sized copy of capture
 		captureContext.drawImage(video, 0, 0, captureWidth, captureHeight);
 		var captureImageData = captureContext.getImageData(0, 0, captureWidth, captureHeight);
@@ -162,9 +262,36 @@ var DiffCamEngine = (function() {
 		diffContext.globalCompositeOperation = 'source-over';
 		diffContext.drawImage(video, 0, 0, diffWidth, diffHeight);
 		isReadyToDiff = true;
-	}
-
-	function processDiff(diffImageData) {
+	}*/
+  const processDiff = diffImageData => {
+    var rgba = diffImageData.data;
+    var score = 0;
+    var motionPixels = includeMotionPixels ? [] : undefined;
+    var motionBox = undefined;
+    for (var i = 0; i < rgba.length; i += 4) {
+      var pixelDiff = rgba[i] * 0.3 + rgba[i + 1] * 0.6 + rgba[i + 2] * 0.1;
+      var normalized = Math.min(255, pixelDiff * (255 / pixelDiffThreshold));
+      rgba[i] = 0;
+      rgba[i + 1] = normalized;
+      rgba[i + 2] = 0;
+      if (pixelDiff >= pixelDiffThreshold) {
+        score++;
+        coords = calculateCoordinates(i / 4);
+        if (includeMotionBox) {
+          motionBox = calculateMotionBox(motionBox, coords.x, coords.y);
+        }
+        if (includeMotionPixels) {
+          motionPixels = calculateMotionPixels(motionPixels, coords.x, coords.y, pixelDiff);
+        }
+      }
+    }
+    return {
+      score: score,
+      motionBox: score > scoreThreshold ? motionBox : undefined,
+      motionPixels: motionPixels
+    };
+  }
+	/*function processDiff(diffImageData) {
 		var rgba = diffImageData.data;
 
 		// pixel adjustments are done by reference directly on diffImageData
@@ -198,16 +325,30 @@ var DiffCamEngine = (function() {
 			motionBox: score > scoreThreshold ? motionBox : undefined,
 			motionPixels: motionPixels
 		};
-	}
-
-	function calculateCoordinates(pixelIndex) {
+	}*/
+  const calculateCoordinates = pixelIndex => ({
+    x: pixelIndex % diffWidth,
+    y: Math.floor(pixelIndex / diffWidth)
+  });
+	/* function calculateCoordinates(pixelIndex) {
 		return {
 			x: pixelIndex % diffWidth,
 			y: Math.floor(pixelIndex / diffWidth)
 		};
-	}
+	}*/
 
-	function calculateMotionBox(currentMotionBox, x, y) {
+  const calculateMotionBox = (currentMotionBox, x, y) => {
+    const motionBox = currentMotionBox || {
+      x: { min: coords.x, max: x },
+      y: { min: coords.y, max: y }
+    };
+    motionBox.x.min = Math.min(motionBox.x.min, x);
+    motionBox.x.max = Math.max(motionBox.x.max, x);
+    motionBox.y.min = Math.min(motionBox.y.min, y);
+    motionBox.y.max = Math.max(motionBox.y.max, y);
+    return motionBox;
+  }
+	/* function calculateMotionBox(currentMotionBox, x, y) {
 		// init motion box on demand
 		var motionBox = currentMotionBox || {
 			x: { min: coords.x, max: x },
@@ -220,42 +361,53 @@ var DiffCamEngine = (function() {
 		motionBox.y.max = Math.max(motionBox.y.max, y);
 
 		return motionBox;
-	}
-
-	function calculateMotionPixels(motionPixels, x, y, pixelDiff) {
+	}*/
+  const calculateMotionPixels = (motionPixels, x, y, pixelDiff) => {
+    motionPixels[x] = motionPixels[x] || [];
+    motionPixels[x][y] = true;
+    return motionPixels;
+  };
+	/*function calculateMotionPixels(motionPixels, x, y, pixelDiff) {
 		motionPixels[x] = motionPixels[x] || [];
 		motionPixels[x][y] = true;
 
 		return motionPixels;
-	}
-
-	function getCaptureUrl(captureImageData) {
+	}*/
+  const getCaptureUrl = captureImageData => {
+    captureContext.putImageData(captureImageData, 0, 0);
+    return captureCanvas.toDataURL();
+  }
+	/*function getCaptureUrl(captureImageData) {
 		// may as well borrow captureCanvas
 		captureContext.putImageData(captureImageData, 0, 0);
 		return captureCanvas.toDataURL();
-	}
+	}*/
 
-	function checkMotionPixel(motionPixels, x, y) {
+  const checkMotionPixel = (motionPixels, x, y) => motionPixels && motionPixels[x] && motionPixels[x][y];
+	/* function checkMotionPixel(motionPixels, x, y) {
 		return motionPixels && motionPixels[x] && motionPixels[x][y];
-	}
-
-	function getPixelDiffThreshold() {
+	}*/
+  const getPixelDiffThreshold = () => pixelDiffThreshold;
+	/*function getPixelDiffThreshold() {
 		return pixelDiffThreshold;
-	}
-
-	function setPixelDiffThreshold(val) {
+	}*/
+  const setPixelDiffThreshold = val => pixelDiffThreshold = val;
+	/*function setPixelDiffThreshold(val) {
 		pixelDiffThreshold = val;
-	}
-
-	function getScoreThreshold() {
+	}*/
+  const getScoreThreshold = () => scoreThreshold;
+	/*function getScoreThreshold() {
 		return scoreThreshold;
-	}
-
-	function setScoreThreshold(val) {
+	}*/
+  const setScoreThreshold = val => scoreThreshold = val;
+	/*function setScoreThreshold(val) {
 		scoreThreshold = val;
-	}
-
-	return {
+	}*/
+  return {
+    getPixelDiffThreshold, setPixelDiffThreshold, getScoreThreshold, setScoreThreshold,
+    init, start, stop
+  };
+	/* return {
 		// public getters/setters
 		getPixelDiffThreshold: getPixelDiffThreshold,
 		setPixelDiffThreshold: setPixelDiffThreshold,
@@ -266,5 +418,5 @@ var DiffCamEngine = (function() {
 		init: init,
 		start: start,
 		stop: stop
-	};
+	};*/
 })();

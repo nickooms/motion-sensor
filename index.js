@@ -1,17 +1,20 @@
 let video;
 let canvas;
 
-var constraints = {
+const constraints = {
   audio: false,
   video: { width: 640, height: 480 }
 };
+
 navigator.mediaDevices.getUserMedia(constraints)
   .then(success)
   .catch(error);
+
 function success(stream) {
-  var video = document.getElementById('video');
+  const video = document.getElementById('video');
   video.srcObject = stream;
 }
+
 function error(error) {
   console.log(error);
 }
@@ -20,7 +23,7 @@ video = document.getElementById('video');
 canvas = document.createElement('canvas');
 canvas.width = 640;
 canvas.height = 480;
-let context = canvas.getContext('2d');
+const context = canvas.getContext('2d');
 
 setInterval(capture, 100);
 
